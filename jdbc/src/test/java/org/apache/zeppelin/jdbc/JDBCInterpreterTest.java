@@ -30,11 +30,15 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Properties;
 
-import org.apache.zeppelin.interpreter.InterpreterContext;
-import org.apache.zeppelin.interpreter.InterpreterResult;
+import org.apache.zeppelin.display.AngularObjectRegistry;
+import org.apache.zeppelin.display.GUI;
+import org.apache.zeppelin.interpreter.*;
 import org.apache.zeppelin.jdbc.JDBCInterpreter;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -45,7 +49,7 @@ import com.mockrunner.jdbc.BasicJDBCTestCaseAdapter;
 public class JDBCInterpreterTest extends BasicJDBCTestCaseAdapter {
 
   static String jdbcConnection;
-
+    private InterpreterContext context;
   private static String getJdbcConnection() throws IOException {
     if(null == jdbcConnection) {
       Path tmpDir = Files.createTempDirectory("h2-test-");
@@ -57,15 +61,34 @@ public class JDBCInterpreterTest extends BasicJDBCTestCaseAdapter {
   
   @Before
   public void setUp() throws Exception {
+      InterpreterGroup intpGroup = new InterpreterGroup();
+      InterpreterOutput intpOutput =  new InterpreterOutput(new InterpreterOutputListener() {
+          @Override
+          public void onAppend(InterpreterOutput out, byte[] line) {
+
+          }
+
+          @Override
+          public void onUpdate(InterpreterOutput out, byte[] output) {
+
+          }
+      });
+
+      context = new InterpreterContext("note", "id", "title", "text",
+              new HashMap<String, Object>(),
+              new GUI(),
+              new AngularObjectRegistry(intpGroup.getId(), null),
+              new LinkedList<InterpreterContextRunner>(),
+              intpOutput);
 
     Class.forName("org.h2.Driver");
     Connection connection = DriverManager.getConnection(getJdbcConnection());
     Statement statement = connection.createStatement();
     statement.execute(
         "DROP TABLE IF EXISTS test_table; " +
-        "CREATE TABLE test_table(id varchar(255), name varchar(255));");
+        "CREATE TABLE test_table(id varchar(255), name varchar(255), value int);");
     statement.execute(
-        "insert into test_table(id, name) values ('a', 'a_name'),('b', 'b_name');"
+        "insert into test_table(id, name, value) values ('a', 'a_name', 1),('b', 'b_name', 2);"
     );
   }
 
@@ -94,11 +117,11 @@ public class JDBCInterpreterTest extends BasicJDBCTestCaseAdapter {
 
     String sqlQuery = "select * from test_table";
 
-    InterpreterResult interpreterResult = t.interpret(sqlQuery, new InterpreterContext("", "1", "","", null,null,null,null,null));
+    InterpreterResult interpreterResult = t.interpret(sqlQuery, context);
 
     assertEquals(InterpreterResult.Code.SUCCESS, interpreterResult.code());
     assertEquals(InterpreterResult.Type.TABLE, interpreterResult.type());
-    assertEquals("ID\tNAME\na\ta_name\nb\tb_name\n", interpreterResult.message());
+    assertEquals("ID\tNAME\tVALUE\na\ta_name\t1\nb\tb_name\t2\n", interpreterResult.message());
   }
 
   @Test
@@ -116,10 +139,31 @@ public class JDBCInterpreterTest extends BasicJDBCTestCaseAdapter {
 
     String sqlQuery = "select * from test_table";
 
-    InterpreterResult interpreterResult = t.interpret(sqlQuery, new InterpreterContext("", "1", "","", null,null,null,null,null));
+    InterpreterResult interpreterResult = t.interpret(sqlQuery, context);
 
     assertEquals(InterpreterResult.Code.SUCCESS, interpreterResult.code());
     assertEquals(InterpreterResult.Type.TABLE, interpreterResult.type());
-    assertEquals("ID\tNAME\na\ta_name\n", interpreterResult.message());
+    assertEquals("ID\tNAME\tVALUE\na\ta_name\t1\n", interpreterResult.message());
+  }
+
+  @Test
+  public void testSelectQueryWithFunction() throws SQLException, IOException {
+    Properties properties = new Properties();
+    properties.setProperty("common.max_count", "1000");
+    properties.setProperty("common.max_retry", "3");
+    properties.setProperty("default.driver", "org.h2.Driver");
+    properties.setProperty("default.url", getJdbcConnection());
+    properties.setProperty("default.user", "");
+    properties.setProperty("default.password", "");
+    JDBCInterpreter t = new JDBCInterpreter(properties);
+    t.open();
+
+    String sqlQuery = "select sum(value) from test_table";
+
+    InterpreterResult interpreterResult = t.interpret(sqlQuery, context);
+
+    assertEquals(InterpreterResult.Code.SUCCESS, interpreterResult.code());
+    assertEquals(InterpreterResult.Type.TABLE, interpreterResult.type());
+    assertEquals("SUM(VALUE)\n3\n", interpreterResult.message());
   }
 }
