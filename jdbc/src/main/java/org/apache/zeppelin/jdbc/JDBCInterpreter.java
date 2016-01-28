@@ -291,9 +291,18 @@ public class JDBCInterpreter extends Interpreter {
           msg.append(NEWLINE);
 
           int displayRowCount = 0;
+          Object o;
+          String v;
           while (resultSet.next() && displayRowCount < getMaxResult()) {
             for (int i = 1; i < md.getColumnCount() + 1; i++) {
-              msg.append(replaceReservedChars(isTableType, resultSet.getString(i)));
+              o = resultSet.getObject(i);
+              if(o == null) {
+                v = "null";
+              } else {
+                v = o.toString();
+              }
+
+              msg.append(replaceReservedChars(isTableType, v));
               if (i != md.getColumnCount()) {
                 msg.append(TAB);
               }
