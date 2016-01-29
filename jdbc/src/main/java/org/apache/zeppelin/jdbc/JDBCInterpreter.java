@@ -296,7 +296,7 @@ public class JDBCInterpreter extends Interpreter {
           while (resultSet.next() && displayRowCount < getMaxResult()) {
             for (int i = 1; i < md.getColumnCount() + 1; i++) {
               o = resultSet.getObject(i);
-              if(o == null) {
+              if (o == null) {
                 v = "null";
               } else {
                 v = o.toString();
